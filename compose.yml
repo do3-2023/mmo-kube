@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=mmo-kube
+      - POSTGRES_PASSWORD=mmo-kube
+      - POSTGRES_DB=mmo-kube
+    ports:
+      - "5432:5432"
+    volumes:
+      - "mmo-kube:/var/lib/postgresql/data"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.25"
+          memory: 125M
+
+volumes:
+  mmo-kube:
