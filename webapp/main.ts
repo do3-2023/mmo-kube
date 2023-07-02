@@ -39,8 +39,8 @@ router.get("/", async (ctx: Context) => {
 
 router.get("/healthz", async (ctx: Context) => {
   try {
-    await fetch(`${apiUrl}/healthz`);
-    ctx.response.status = 204;
+    const response = await fetch(`${apiUrl}/healthz`);
+    ctx.response.status = response.status;
   } catch (_) {
     ctx.response.status = 500;
   }
