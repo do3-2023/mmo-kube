@@ -4,48 +4,97 @@
 
 This is a simple http node server with EJS templates.
 
-### How do I run it locally ?
+Environment :
+
+- `API_URL`: base url to the api
+
+## Api
+
+Simple golang http server using gin which connects to a postgresql database.
+
+It also runs migrations at start if configured so.
+
+Environment :
+
+- `PG_USER`: Username of the user in the postgresql database
+- `PG_PASSWORD`: Password of the user in the postgresql database
+- `PG_HOSTNAME`: Hostname of the machine running postgresql
+- `PG_DATABASE`: Name of the database to connect to
+- `ENV`: Mode to run the api in. Possible values :
+  - `dev`: runs migrations and start http server
+  - `migrate`: runs migrations and exit
+
+## How do I run it locally ?
+
+#### Requirements
+
+- [Docker Engine](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/) as standalone binaries
+
+#### Steps to follow
 
 ```bash
-cd webapp
+git clone https://github.com/do3-2023/mmo-kube
 
-# actually runs deno run --allow-net --allow-read --watch main.ts
-# this allows the process to access network and reading fils such as the html template
-deno task dev
+cd mmo-kube
+
+# start the application
+docker compose up -d
+
+# access it
+curl http://localhost:8080/
 ```
 
-And you're done ! The application is running on port 8080.
-
-## Pushing images to docker
+## Pushing images to a registry
 
 ```bash
-cd webapp
+cd webapp # or api
 
 # build it
-docker build -t ghcr.io/do3-2023/mmo-kube/webapp:<tag>
-
-# test it
-docker run -itp 8080:8080 ghcr.io/do3-2023/mmo-kube/webapp:<tag>
+docker build -t "$IMAGE_NAME:$TAG"
 
 # push it
-docker push ghcr.io/do3-2023/mmo-kube/webapp:<tag>
+docker push "$IMAGE_NAME:$TAG"
 ```
 
 ## Setting up k3d and the applications
 
+### Requirements
+
+- [Docker Engine](https://docs.docker.com/get-docker/)
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+- [K3D](https://k3d.io/v5.5.1/)
+
+### Steps to follow
+
+#### Create this directory to persist the data later
+
 ```bash
 mkdir /tmp/k3dvol
+```
 
-# -p options maps the nodeport 30080 to the 1024 port on your machine
-# --volume option creates a volume on your machine so that persistent volumes can be retained
-# --agents add two workers
-# --api-port is the port of the kubeapi
-k3d cluster create mmo --api-port 6550 -p "1024:30080@loadbalancer" --agents 2 --volume /tmp/k3dvol:/k3dvol
+#### Create a cluster with the k3d cli
 
-# Save the kubeconfig file, you can also put it somewhere else and specify KUBECONFIG env var
+```bash
+k3d cluster create mmo --api-port 6550 -p "1024:80@loadbalancer" --agents 2 --volume /tmp/k3dvol:/k3dvol
+```
+
+What does it do ?
+
+- `-p` options maps the nodeport 80 which is the nodeport traefik is listening on to the 1024 port on your machine
+- `--volume` option creates a volume on your machine so that persistent volumes can be retained
+- `--agents` add two workers
+- `--api-port` is the port of the kubeapi (optional)
+
+#### Save the kubeconfig file, you can also put it somewhere else and specify KUBECONFIG env var
+
+```bash
 k3d kubeconfig get mmo > ~/.kube/config
+```
 
-# Wait for cluster to start
+#### Wait for cluster to start and apply the yaml files representing kubernetes resources
+
+```bash
 kubectl apply -f .kube/common/namespace
 
 kubectl apply -f .kube/db
@@ -53,14 +102,48 @@ kubectl apply -f .kube/db
 kubectl apply -f .kube/api
 
 kubectl apply -f .kube/webapp
+```
 
-# wait for all deployments to be ready
+#### Wait for all deployments to be ready
+
+```bash
 curl http://localhost:1024
+```
 
+#### Delete the db deployment to check probes
+
+```bash
 kubectl delete deployment -n data db
+```
 
-# theses pods not be ready and kubernetes should be trying to start them again
-# the data is also persisted
+#### Check the readiness of the webapp and api pods
+
+```bash
 kubectl get pods -n back
 kubectl get pods -n front
+```
+
+They should not be ready.
+
+#### Add the deployment again
+
+```bash
+kubectl apply -f .kube/db/deployment.yml
+```
+
+#### Check the readiness of the webapp and api pods
+
+```bash
+kubectl get pods -n back
+kubectl get pods -n front
+```
+
+They should now be ready again. And the data should have been persisted.
+
+### Cleanup
+
+```bash
+k3d cluster rm mmo
+
+sudo rm -rf /tmp/k3dvol
 ```
