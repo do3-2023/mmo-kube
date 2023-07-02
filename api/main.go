@@ -104,12 +104,13 @@ func main() {
 		if lastCallRaw.Valid {
 			response["last_call"] = lastCallRaw.Time.Format(time.RFC3339)
 		}
-	
+
 		c.JSON(http.StatusOK, response)
 	})
 
 	router.GET("/healthz", func(c *gin.Context) {
-		err := db.Ping()
+		var result int
+		err := db.QueryRow("SELECT 1").Scan(&result)
 		if err != nil {
 			log.Println(err)
 			c.Status(http.StatusInternalServerError)
